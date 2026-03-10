@@ -1,0 +1,6 @@
+# AlphaGenome Explorer – Python dependencies
+shiny>=0.10.0
+alphagenome
+matplotlib
+pandas
+pyarrow        # required by pandas.read_feather
