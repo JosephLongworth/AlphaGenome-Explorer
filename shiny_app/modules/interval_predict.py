@@ -288,7 +288,7 @@ def interval_predict_server(input, output, session, api_key_rv):
             track_data = getattr(output_obj, ot_name.lower(), None)
             if track_data is not None:
                 components.append(
-                    plot_components.Tracks(track_data, title=ot_name.replace("_", " "))
+                    plot_components.Tracks(track_data)
                 )
 
         if not components:

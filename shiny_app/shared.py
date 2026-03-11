@@ -38,7 +38,7 @@ ONTOLOGY_TERMS: dict[str, str] = {
 
 # choices dict suitable for ui.input_selectize / ui.input_checkbox_group
 ONTOLOGY_CHOICES: dict[str, str] = {
-    f"{term} – {name}": term for term, name in ONTOLOGY_TERMS.items()
+    term: f"{term} – {name}" for term, name in ONTOLOGY_TERMS.items()
 }
 
 # ---------------------------------------------------------------------------
