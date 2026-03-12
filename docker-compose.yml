@@ -1,0 +1,8 @@
+services:
+  alphagenome-explorer:
+    build: .
+    image: alphagenome-explorer:latest
+    container_name: alphagenome-explorer
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
