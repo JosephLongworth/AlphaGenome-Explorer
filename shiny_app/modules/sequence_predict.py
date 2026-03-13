@@ -9,6 +9,7 @@ from shared import (
     ALL_OUTPUT_TYPES,
     SEQUENCE_LENGTH_OPTIONS,
     get_model,
+    help_icon,
 )
 
 
@@ -31,27 +32,41 @@ def sequence_predict_ui():
                 ui.h5("Sequence"),
                 ui.input_text_area(
                     "sequence",
-                    "DNA Sequence",
+                    ui.span("DNA Sequence", help_icon(
+                        "Enter a raw DNA sequence using A, T, G, C, or N characters. "
+                        "It will be centre-padded with N's to reach the chosen length."
+                    )),
                     value="GATTACA",
                     rows=4,
                     placeholder="A, T, G, C, N …",
                 ),
                 ui.input_select(
                     "seq_length",
-                    "Pad to length",
+                    ui.span("Pad to length", help_icon(
+                        "The model always operates on a fixed-length sequence. "
+                        "Your input is centred and flanked with N's to fill this window. "
+                        "Larger windows capture more distal regulatory context but cost more API time."
+                    )),
                     choices={v: k for k, v in SEQUENCE_LENGTH_OPTIONS.items()},
                     selected="SEQUENCE_LENGTH_1MB",
                 ),
                 ui.input_select(
                     "organism",
-                    "Organism",
+                    ui.span("Organism", help_icon(
+                        "The species whose regulatory grammar the model was trained on. "
+                        "Choose Human for hg38-based sequences, Mouse for mm10."
+                    )),
                     choices={
                         "HOMO_SAPIENS": "Human (Homo sapiens)",
                         "MUS_MUSCULUS": "Mouse (Mus musculus)",
                     },
                 ),
                 ui.hr(),
-                ui.h5("Output types"),
+                ui.h5("Output types", help_icon(
+                    "Select which genomic assay tracks to predict. "
+                    "Each type measures a different aspect of gene regulation. "
+                    "See the Guide page for full descriptions."
+                )),
                 ui.input_checkbox_group(
                     "output_types",
                     None,
@@ -59,7 +74,11 @@ def sequence_predict_ui():
                     selected=["DNASE"],
                 ),
                 ui.hr(),
-                ui.h5("Tissues / cell types"),
+                ui.h5("Tissues / cell types", help_icon(
+                    "Filter predictions to specific biological contexts. "
+                    "Each term is an ontology identifier (UBERON, CL, or EFO) "
+                    "representing a tissue or cell type. See the Guide page for the full list."
+                )),
                 ui.input_selectize(
                     "ontology_terms",
                     None,
@@ -70,7 +89,10 @@ def sequence_predict_ui():
                 ),
                 ui.input_text(
                     "custom_ontology",
-                    "Custom ontology term",
+                    ui.span("Custom ontology term", help_icon(
+                        "Enter any valid ontology CURIE not in the list above, "
+                        "e.g. UBERON:0001114. It will be added to the selected terms."
+                    )),
                     placeholder="e.g. UBERON:0001114",
                 ),
                 ui.hr(),
@@ -148,7 +170,7 @@ def sequence_predict_server(input, output, session, api_key_rv):
                 ontology_terms=ont_terms,
                 organism=organism,
             )
-            _result.set((output_obj, out_types))
+            _result.set((output_obj, out_types, seq_length))
             ui.notification_remove("pred_notif")
             ui.notification_show("Prediction complete.", type="message", duration=4)
 
@@ -180,24 +202,35 @@ def sequence_predict_server(input, output, session, api_key_rv):
         if data is None:
             return
 
-        output_obj, out_types = data
+        output_obj, out_types, seq_length = data
         from alphagenome.visualization import plot_components
+        from alphagenome.data import genome
+
+        # Raw sequence predictions have no genomic coordinates – build a
+        # synthetic interval so plot_components.plot() has something to anchor on.
+        synthetic_interval = genome.Interval(
+            chromosome="sequence", start=0, end=seq_length
+        )
 
         components = []
         for ot_name in out_types:
             track_data = getattr(output_obj, ot_name.lower(), None)
-            if track_data is not None:
-                components.append(
-                    plot_components.Tracks(track_data)
-                )
+            if track_data is None:
+                continue
+            # Set interval on track_data if absent (required by plot_components)
+            if getattr(track_data, "interval", None) is None:
+                try:
+                    track_data.interval = synthetic_interval
+                except (AttributeError, TypeError):
+                    object.__setattr__(track_data, "interval", synthetic_interval)
+            components.append(plot_components.Tracks(track_data))
 
         if not components:
             return
 
-        # Derive interval from first available track (may be None for raw sequences)
-        interval = getattr(components[0], "interval", None) or getattr(
+        interval = getattr(
             getattr(output_obj, out_types[0].lower(), None), "interval", None
-        )
+        ) or synthetic_interval
 
         fig = plot_components.plot(components=components, interval=interval)
         return fig if fig is not None else plt.gcf()
@@ -209,7 +242,7 @@ def sequence_predict_server(input, output, session, api_key_rv):
         if data is None:
             return ui.div()
 
-        output_obj, out_types = data
+        output_obj, out_types, *_ = data
         tables = []
         for ot_name in out_types:
             track_data = getattr(output_obj, ot_name.lower(), None)

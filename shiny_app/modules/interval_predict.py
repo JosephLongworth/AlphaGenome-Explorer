@@ -11,6 +11,7 @@ from shared import (
     SEQUENCE_LENGTH_OPTIONS,
     get_model,
     get_gtf,
+    help_icon,
 )
 
 
@@ -33,7 +34,10 @@ def interval_predict_ui():
                 ui.h5("Interval definition"),
                 ui.input_radio_buttons(
                     "interval_mode",
-                    None,
+                    ui.span("Input mode", help_icon(
+                        "Gene symbol: look up the MANE-select transcript for a gene and use its genomic span. "
+                        "Manual: enter chromosome, start, and end coordinates directly."
+                    )),
                     choices={"gene": "Gene symbol", "manual": "Manual interval"},
                     selected="gene",
                     inline=True,
@@ -69,20 +73,31 @@ def interval_predict_ui():
                 ui.hr(),
                 ui.input_select(
                     "seq_length",
-                    "Resize interval to",
+                    ui.span("Resize interval to", help_icon(
+                        "The genomic interval will be expanded or contracted to this length, "
+                        "centred on the original midpoint. Larger windows capture distal "
+                        "regulatory elements but require more API compute."
+                    )),
                     choices={v: k for k, v in SEQUENCE_LENGTH_OPTIONS.items()},
                     selected="SEQUENCE_LENGTH_1MB",
                 ),
                 ui.input_select(
                     "organism",
-                    "Organism",
+                    ui.span("Organism", help_icon(
+                        "The species whose regulatory grammar the model was trained on. "
+                        "Interval coordinates must be from the matching reference genome "
+                        "(hg38 for Human, mm10 for Mouse)."
+                    )),
                     choices={
                         "HOMO_SAPIENS": "Human (Homo sapiens)",
                         "MUS_MUSCULUS": "Mouse (Mus musculus)",
                     },
                 ),
                 ui.hr(),
-                ui.h5("Output types"),
+                ui.h5("Output types", help_icon(
+                    "Select which genomic assay tracks to predict. "
+                    "See the Guide page for full descriptions of each type."
+                )),
                 ui.input_checkbox_group(
                     "output_types",
                     None,
@@ -90,7 +105,10 @@ def interval_predict_ui():
                     selected=["RNA_SEQ"],
                 ),
                 ui.hr(),
-                ui.h5("Tissues / cell types"),
+                ui.h5("Tissues / cell types", help_icon(
+                    "Filter predictions to specific biological contexts. "
+                    "See the Guide page for the full list of supported terms."
+                )),
                 ui.input_selectize(
                     "ontology_terms",
                     None,
@@ -101,13 +119,19 @@ def interval_predict_ui():
                 ),
                 ui.input_text(
                     "custom_ontology",
-                    "Custom ontology term",
+                    ui.span("Custom ontology term", help_icon(
+                        "Enter any valid ontology CURIE not in the list above, "
+                        "e.g. UBERON:0001157. It will be added to the selected terms."
+                    )),
                     placeholder="e.g. UBERON:0001157",
                 ),
                 ui.hr(),
                 ui.input_checkbox(
                     "show_transcripts",
-                    "Overlay transcript annotations",
+                    ui.span("Overlay transcript annotations", help_icon(
+                        "Load the GENCODE hg38 annotation and draw MANE-select transcripts "
+                        "above the track plot. Requires clicking 'Load gene annotations' first."
+                    )),
                     value=True,
                 ),
                 ui.hr(),

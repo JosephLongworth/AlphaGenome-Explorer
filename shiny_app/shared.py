@@ -2,6 +2,7 @@
 Shared constants, helpers, and caches for the AlphaGenome Shiny app.
 """
 import os
+from shiny import ui
 
 # ---------------------------------------------------------------------------
 # Default API key – read from environment variable if available
@@ -103,6 +104,18 @@ def get_gtf():
 def get_track_data(output, output_type_name: str):
     """Return the TrackData attribute on *output* for *output_type_name* (e.g. 'RNA_SEQ')."""
     return getattr(output, output_type_name.lower(), None)
+
+
+def help_icon(tooltip_text: str):
+    """Return a small ℹ icon with a Shiny tooltip shown on hover."""
+    return ui.tooltip(
+        ui.tags.span(
+            " ℹ",
+            style="cursor: help; color: #6c757d; font-size: 0.8em;",
+        ),
+        tooltip_text,
+        placement="right",
+    )
 
 
 def render_plot_safe(plot_fn):

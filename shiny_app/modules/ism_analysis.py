@@ -5,7 +5,7 @@ target region and visualise the results as a sequence logo.
 from shiny import module, ui, render, reactive
 import matplotlib.pyplot as plt
 
-from shared import ONTOLOGY_CHOICES, SCOREABLE_OUTPUT_TYPES, get_model
+from shared import ONTOLOGY_CHOICES, SCOREABLE_OUTPUT_TYPES, get_model, help_icon
 
 
 # Aggregation type choices (subset of AggregationType)
@@ -49,13 +49,20 @@ def ism_analysis_ui():
                 ),
                 ui.input_numeric(
                     "centre_position",
-                    "Centre position (bp)",
+                    ui.span("Centre position (bp)", help_icon(
+                        "Genomic coordinate that will be the midpoint of the context window. "
+                        "The ISM target region is then centred on this same point."
+                    )),
                     value=3_753_200,
                     min=1,
                 ),
                 ui.input_select(
                     "context_length",
-                    "Context window",
+                    ui.span("Context window", help_icon(
+                        "The total sequence length passed to the model. 16 KB is strongly "
+                        "recommended for ISM — it minimises API calls and run time. "
+                        "Larger windows capture more regulatory context but are much slower."
+                    )),
                     choices={
                         "SEQUENCE_LENGTH_16KB": "16 KB (recommended)",
                         "SEQUENCE_LENGTH_100KB": "100 KB",
@@ -66,7 +73,11 @@ def ism_analysis_ui():
                 ui.h5("ISM target region"),
                 ui.input_numeric(
                     "ism_width",
-                    "Width (bp, centred on interval)",
+                    ui.span("Width (bp, centred on interval)", help_icon(
+                        "Every single-base substitution within this window will be scored. "
+                        "Each batch of ~32 variants needs a separate API call, so keep this "
+                        "small (≤ 256 bp) to avoid long run times."
+                    )),
                     value=256,
                     min=1,
                     max=1000,
@@ -76,13 +87,20 @@ def ism_analysis_ui():
                 ui.h5("Scoring"),
                 ui.input_select(
                     "output_type",
-                    "Output type",
+                    ui.span("Output type", help_icon(
+                        "The genomic assay used to score each substitution. "
+                        "DNASE and ATAC are good choices for identifying regulatory elements. "
+                        "See the Guide page for descriptions of each type."
+                    )),
                     choices={t: t.replace("_", " ").title() for t in SCOREABLE_OUTPUT_TYPES},
                     selected="DNASE",
                 ),
                 ui.input_selectize(
                     "ontology_term",
-                    "Tissue / cell type (single)",
+                    ui.span("Tissue / cell type (single)", help_icon(
+                        "The biological context used to filter scoring results. "
+                        "Only one term is supported for ISM. See the Guide page for the full list."
+                    )),
                     choices=ONTOLOGY_CHOICES,
                     multiple=False,
                     selected="EFO:0002067",
@@ -90,18 +108,30 @@ def ism_analysis_ui():
                 ),
                 ui.input_text(
                     "custom_ontology",
-                    "Custom ontology term",
+                    ui.span("Custom ontology term", help_icon(
+                        "Enter a valid ontology CURIE to override the selection above, "
+                        "e.g. EFO:0002067."
+                    )),
                     placeholder="e.g. EFO:0002067",
                 ),
                 ui.input_select(
                     "aggregation_type",
-                    "Aggregation",
+                    ui.span("Aggregation", help_icon(
+                        "How scores are summarised across tracks for each variant. "
+                        "Diff mean (ALT − REF) shows directional effects; "
+                        "Abs diff mean highlights any change regardless of direction; "
+                        "Log fold change normalises by baseline signal level."
+                    )),
                     choices=AGG_CHOICES,
                     selected="DIFF_MEAN",
                 ),
                 ui.input_numeric(
                     "mask_width",
-                    "Center mask width (bp)",
+                    ui.span("Center mask width (bp)", help_icon(
+                        "The CenterMaskScorer sums signal within this central window "
+                        "of the predicted track. A wider mask captures broader regulatory "
+                        "effects; narrower masks are more position-specific."
+                    )),
                     value=501,
                     min=1,
                     step=10,

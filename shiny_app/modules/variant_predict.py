@@ -11,6 +11,7 @@ from shared import (
     SEQUENCE_LENGTH_OPTIONS,
     get_model,
     get_gtf,
+    help_icon,
 )
 
 
@@ -33,14 +34,39 @@ def variant_predict_ui():
             ui.sidebar(
                 ui.h5("Variant"),
                 ui.input_text("chromosome", "Chromosome", value="chr22", placeholder="e.g. chr1"),
-                ui.input_numeric("position", "Position (1-based)", value=36_201_698, min=1),
-                ui.input_text("ref_bases", "REF allele", value="A", placeholder="e.g. A"),
-                ui.input_text("alt_bases", "ALT allele", value="C", placeholder="e.g. C"),
+                ui.input_numeric(
+                    "position",
+                    ui.span("Position (1-based)", help_icon(
+                        "The genomic coordinate of the variant in 1-based notation, "
+                        "matching the VCF convention. Must be within the chosen chromosome."
+                    )),
+                    value=36_201_698, min=1,
+                ),
+                ui.input_text(
+                    "ref_bases",
+                    ui.span("REF allele", help_icon(
+                        "The reference base(s) at this position, as they appear in the "
+                        "reference genome (hg38). Usually a single nucleotide for SNVs."
+                    )),
+                    value="A", placeholder="e.g. A",
+                ),
+                ui.input_text(
+                    "alt_bases",
+                    ui.span("ALT allele", help_icon(
+                        "The alternate (mutant) base(s) to substitute at this position. "
+                        "The model compares REF vs ALT predictions to measure functional impact."
+                    )),
+                    value="C", placeholder="e.g. C",
+                ),
                 ui.hr(),
                 ui.h5("Interval"),
                 ui.input_select(
                     "seq_length",
-                    "Sequence length",
+                    ui.span("Sequence length", help_icon(
+                        "The genomic window centred on the variant that is fed to the model. "
+                        "Larger windows capture more distal regulatory context. "
+                        "1 MB is recommended for most variants."
+                    )),
                     choices={v: k for k, v in SEQUENCE_LENGTH_OPTIONS.items()},
                     selected="SEQUENCE_LENGTH_1MB",
                 ),
@@ -48,13 +74,19 @@ def variant_predict_ui():
                 ui.h5("Prediction output"),
                 ui.input_select(
                     "output_type",
-                    "Output type",
+                    ui.span("Output type", help_icon(
+                        "The genomic assay track to compare between REF and ALT. "
+                        "Only scoreable types are listed. See the Guide page for descriptions."
+                    )),
                     choices={t: t.replace("_", " ").title() for t in SCOREABLE_OUTPUT_TYPES},
                     selected="RNA_SEQ",
                 ),
                 ui.input_selectize(
                     "ontology_terms",
-                    "Tissues / cell types",
+                    ui.span("Tissues / cell types", help_icon(
+                        "Restrict predictions to these biological contexts. "
+                        "See the Guide page for the full list of supported terms."
+                    )),
                     choices=ONTOLOGY_CHOICES,
                     multiple=True,
                     selected=["UBERON:0001157"],
@@ -62,31 +94,45 @@ def variant_predict_ui():
                 ),
                 ui.input_text(
                     "custom_ontology",
-                    "Custom ontology term",
+                    ui.span("Custom ontology term", help_icon(
+                        "Enter any valid ontology CURIE not in the list, e.g. UBERON:0001157."
+                    )),
                     placeholder="e.g. UBERON:0001157",
                 ),
                 ui.hr(),
                 ui.h5("Visualisation zoom"),
                 ui.input_select(
                     "zoom_length",
-                    "Plot window",
+                    ui.span("Plot window", help_icon(
+                        "The region shown in the REF vs ALT plot. The model always uses the "
+                        "full sequence length above; this only controls how much is displayed. "
+                        "16 KB gives the clearest view around the variant."
+                    )),
                     choices={v: k for k, v in SEQUENCE_LENGTH_OPTIONS.items()},
                     selected="SEQUENCE_LENGTH_16KB",
                 ),
                 ui.hr(),
-                ui.input_checkbox("run_scoring", "Also score the variant", value=True),
+                ui.input_checkbox(
+                    "run_scoring",
+                    ui.span("Also score the variant", help_icon(
+                        "Run the recommended quantile-calibrated scorer for the chosen output type. "
+                        "Produces a ranked table of effect sizes across all tracks and tissues. "
+                        "Adds an extra API call."
+                    )),
+                    value=True,
+                ),
                 ui.hr(),
                 ui.h5("Transcript annotations"),
-                ui.input_checkbox("show_transcripts", "Load GTF & overlay transcripts", value=False),
-                ui.panel_conditional(
-                    "input.show_transcripts",
-                    ui.input_action_button(
-                        "load_gtf_btn",
-                        "Load gene annotations",
-                        class_="btn btn-outline-secondary btn-sm w-100 mb-1",
-                    ),
-                    ui.output_ui("gtf_status_ui"),
+                ui.input_checkbox(
+                    "show_transcripts",
+                    ui.span("Overlay gene annotations", help_icon(
+                        "Draw MANE-select transcripts above the REF vs ALT plot so you can "
+                        "see which genes are in the region. The GENCODE annotation "
+                        "(~100 MB) is downloaded automatically on the first run."
+                    )),
+                    value=True,
                 ),
+                ui.output_ui("gtf_status_ui"),
                 ui.hr(),
                 ui.input_action_button(
                     "run_btn",
@@ -126,30 +172,15 @@ def variant_predict_server(input, output, session, api_key_rv):
     _result = reactive.Value(None)
     _error = reactive.Value(None)
 
-    # ── Load GTF ────────────────────────────────────────────────────────────
-    @reactive.effect
-    @reactive.event(input.load_gtf_btn)
-    def _load_gtf():
-        _gtf_loaded.set(False)
-        try:
-            ui.notification_show(
-                "Loading GENCODE annotation (~100 MB, first run only)…",
-                duration=None, id="gtf_notif_v",
-            )
-            gtf, tx_extractor = get_gtf()
-            _gtf_data.set((gtf, tx_extractor))
-            _gtf_loaded.set(True)
-            ui.notification_remove("gtf_notif_v")
-            ui.notification_show("Gene annotations loaded.", type="message", duration=4)
-        except Exception as exc:
-            ui.notification_remove("gtf_notif_v")
-            _error.set(f"Failed to load GTF: {exc}")
-
     @render.ui
     def gtf_status_ui():
+        if not input.show_transcripts():
+            return ui.div()
         if _gtf_loaded():
-            return ui.div(ui.tags.small("Annotations loaded.", class_="text-success"))
-        return ui.div(ui.tags.small("Not yet loaded.", class_="text-muted"))
+            return ui.div(ui.tags.small("Gene annotations ready.", class_="text-success"))
+        return ui.div(ui.tags.small(
+            "Annotations will load automatically on first run.", class_="text-muted"
+        ))
 
     # ── Run analysis ─────────────────────────────────────────────────────────
     @reactive.effect
@@ -188,9 +219,18 @@ def variant_predict_server(input, output, session, api_key_rv):
                 _error.set("Select at least one ontology term.")
                 return
 
-            # Transcripts
+            # Auto-load GTF if transcript overlay is enabled and not yet loaded
             transcripts = None
-            if input.show_transcripts() and _gtf_loaded():
+            if input.show_transcripts():
+                if not _gtf_loaded():
+                    ui.notification_show(
+                        "Loading GENCODE annotation (~100 MB, first run only)…",
+                        duration=None, id="gtf_notif_v",
+                    )
+                    gtf, tx_extractor = get_gtf()
+                    _gtf_data.set((gtf, tx_extractor))
+                    _gtf_loaded.set(True)
+                    ui.notification_remove("gtf_notif_v")
                 _, tx_extractor = _gtf_data()
                 transcripts = tx_extractor.extract(interval)
 
