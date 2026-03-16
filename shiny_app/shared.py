@@ -16,26 +16,67 @@ _model_cache: dict = {}
 _gtf_cache: dict = {}
 
 # ---------------------------------------------------------------------------
-# Ontology terms
+# Ontology terms – loaded from supplementary table at startup
 # ---------------------------------------------------------------------------
-ONTOLOGY_TERMS: dict[str, str] = {
-    "UBERON:0002048": "Lung",
-    "UBERON:0000955": "Brain",
-    "UBERON:0002107": "Liver",
-    "UBERON:0001114": "Right liver lobe",
-    "UBERON:0001157": "Colon – Transverse",
-    "UBERON:0000178": "Blood",
-    "UBERON:0002367": "Prostate gland",
-    "UBERON:0002113": "Kidney",
-    "UBERON:0000948": "Heart muscle",
-    "UBERON:0000310": "Breast",
-    "UBERON:0001013": "Adipose tissue",
-    "UBERON:0000945": "Stomach",
-    "EFO:0002067": "K562 (leukaemia cell line)",
-    "CL:0000084": "T cell",
-    "CL:0000115": "Endothelial cell",
-    "CL:0000047": "Neuroblast",
-}
+
+def _load_ontology_data():
+    """
+    Parse Suppl Table 2 from the bundled Excel file and return:
+      - terms:       {curie: biosample_name}  (human tracks only, for selectize)
+      - output_types:{curie: [output_type, …]} (human tracks only)
+      - guide_rows:  list of dicts with curie, name, organisms, output_types
+                     covering both human and mouse
+    Falls back to minimal hard-coded data if the file is missing.
+    """
+    from pathlib import Path
+    import pandas as pd
+
+    xlsx = Path(__file__).parent / "data" / "Supplementary_Tables.xlsx"
+    if not xlsx.exists():
+        fallback = {
+            "UBERON:0002048": "Lung",
+            "UBERON:0000955": "Brain",
+            "UBERON:0002107": "Liver",
+            "UBERON:0000178": "Blood",
+            "EFO:0002067":    "K562 (leukaemia cell line)",
+            "CL:0000084":     "T cell",
+        }
+        guide = [
+            {"curie": k, "name": v, "organisms": ["Human"], "output_types": []}
+            for k, v in fallback.items()
+        ]
+        return fallback, {k: [] for k in fallback}, guide
+
+    df = pd.read_excel(
+        xlsx,
+        sheet_name="Suppl Table 2 Track metadata (f",
+        usecols=["organism", "ontology_curie", "biosample_name", "output_type"],
+    ).dropna(subset=["ontology_curie"])
+
+    # ── Human-only dicts for the selectize inputs ────────────────────────────
+    h = df[df["organism"] == "human"]
+    terms: dict[str, str] = {}
+    output_types: dict[str, list[str]] = {}
+    for curie, grp in h.groupby("ontology_curie"):
+        terms[curie] = grp["biosample_name"].iloc[0]
+        output_types[curie] = sorted(grp["output_type"].unique().tolist())
+
+    # ── All-organism rows for the Guide table ────────────────────────────────
+    guide_rows: list[dict] = []
+    for curie, grp in df.groupby("ontology_curie"):
+        orgs = sorted({o.capitalize() for o in grp["organism"].unique()})
+        h_grp = grp[grp["organism"] == "human"]
+        name = h_grp["biosample_name"].iloc[0] if len(h_grp) else grp["biosample_name"].iloc[0]
+        ots = sorted(grp["output_type"].unique().tolist())
+        guide_rows.append({"curie": curie, "name": name, "organisms": orgs, "output_types": ots})
+
+    return terms, output_types, guide_rows
+
+
+ONTOLOGY_TERMS: dict[str, str]
+ONTOLOGY_OUTPUT_TYPES: dict[str, list[str]]
+GUIDE_TABLE_ROWS: list[dict]
+ONTOLOGY_TERMS, ONTOLOGY_OUTPUT_TYPES, GUIDE_TABLE_ROWS = _load_ontology_data()
 
 # choices dict suitable for ui.input_selectize / ui.input_checkbox_group
 ONTOLOGY_CHOICES: dict[str, str] = {

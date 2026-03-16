@@ -146,7 +146,7 @@ def interval_predict_ui():
             # ── Main panel ─────────────────────────────────────────────────
             ui.div(
                 ui.output_ui("status_ui"),
-                ui.output_plot("prediction_plot", height="550px"),
+                ui.output_ui("prediction_plot_container"),
                 ui.output_ui("metadata_ui"),
             ),
         ),
@@ -294,6 +294,26 @@ def interval_predict_server(input, output, session, api_key_rv):
             class_="alert alert-success",
         )
 
+    # ── Plot height helpers ──────────────────────────────────────────────────
+    def _count_tracks(output_obj, out_types, transcripts):
+        n = 1 if transcripts is not None else 0
+        for ot in out_types:
+            td = getattr(output_obj, ot.lower(), None)
+            if td is not None and hasattr(td, "metadata"):
+                n += len(td.metadata)
+        return max(n, 1)
+
+    @render.ui
+    def prediction_plot_container():
+        data = _result()
+        # Default placeholder height before first run
+        if data is None:
+            return ui.output_plot("prediction_plot", height="400px", width="100%")
+        output_obj, out_types, interval, transcripts = data
+        n = _count_tracks(output_obj, out_types, transcripts)
+        height_px = max(400, n * 60 + 180)
+        return ui.output_plot("prediction_plot", height=f"{height_px}px", width="100%")
+
     # ── Plot ────────────────────────────────────────────────────────────────
     @render.plot
     def prediction_plot():
@@ -311,14 +331,11 @@ def interval_predict_server(input, output, session, api_key_rv):
         for ot_name in out_types:
             track_data = getattr(output_obj, ot_name.lower(), None)
             if track_data is not None:
-                components.append(
-                    plot_components.Tracks(track_data)
-                )
+                components.append(plot_components.Tracks(track_data))
 
         if not components:
             return
 
-        # Use first track's interval for the plot (already resized)
         plot_interval = None
         for ot_name in out_types:
             td = getattr(output_obj, ot_name.lower(), None)
@@ -327,7 +344,13 @@ def interval_predict_server(input, output, session, api_key_rv):
                 break
 
         fig = plot_components.plot(components=components, interval=plot_interval or interval)
-        return fig if fig is not None else plt.gcf()
+        if fig is None:
+            fig = plt.gcf()
+
+        # Resize figure height to match track count so content isn't squashed
+        n = _count_tracks(output_obj, out_types, transcripts)
+        fig.set_size_inches(fig.get_figwidth(), max(5.0, n * 0.55 + 2.0))
+        return fig
 
     # ── Metadata table ──────────────────────────────────────────────────────
     @render.ui

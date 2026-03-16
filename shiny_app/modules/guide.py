@@ -1,9 +1,9 @@
 """
 Guide page – reference for output types and supported tissues / cell types.
 """
-from shiny import module, ui, render
+from shiny import module, ui
 
-from shared import ONTOLOGY_TERMS
+from shared import GUIDE_TABLE_ROWS
 
 
 # ---------------------------------------------------------------------------
@@ -146,6 +146,8 @@ _ONTOLOGY_CATEGORY = {
     "UBERON": "Tissue / organ",
     "CL":     "Cell type",
     "EFO":    "Cell line / experimental factor",
+    "CLO":    "Cell line",
+    "NTR":    "New term request",
 }
 
 
@@ -198,6 +200,177 @@ def _output_card(ot: dict):
 
 
 # ---------------------------------------------------------------------------
+# Tissue table (static, powered by DataTables.js)
+# ---------------------------------------------------------------------------
+
+# Output type → Bootstrap badge class
+_OT_BADGE: dict[str, str] = {
+    "ATAC":              "bg-primary",
+    "DNASE":             "bg-primary",
+    "CAGE":              "bg-warning text-dark",
+    "PROCAP":            "bg-warning text-dark",
+    "RNA_SEQ":           "bg-success",
+    "CHIP_HISTONE":      "bg-purple",
+    "CHIP_TF":           "bg-purple",
+    "SPLICE_SITES":      "bg-danger",
+    "SPLICE_SITE_USAGE": "bg-danger",
+    "SPLICE_JUNCTIONS":  "bg-danger",
+    "CONTACT_MAPS":      "bg-dark",
+}
+
+_CAT_BADGE: dict[str, str] = {
+    "Tissue / organ":                  "bg-primary",
+    "Cell type":                       "bg-success",
+    "Cell line / experimental factor": "bg-warning text-dark",
+    "Cell line":                       "bg-warning text-dark",
+    "New term request":                "bg-secondary",
+}
+
+_ORG_BADGE: dict[str, str] = {
+    "Human": "bg-info text-dark",
+    "Mouse": "bg-secondary",
+}
+
+
+def _tissue_table_widget():
+    """Build the full static DataTables widget for the Tissues & Cell Types tab."""
+
+    # ── Build table body rows ────────────────────────────────────────────────
+    body_rows = []
+    for row in GUIDE_TABLE_ROWS:
+        curie    = row["curie"]
+        name     = row["name"]
+        prefix   = curie.split(":")[0]
+        category = _ONTOLOGY_CATEGORY.get(prefix, prefix)
+
+        org_badges = ui.tags.span(
+            *[
+                ui.tags.span(
+                    org,
+                    class_=f"badge {_ORG_BADGE.get(org, 'bg-secondary')} me-1",
+                    style="font-size:0.75em;",
+                )
+                for org in row["organisms"]
+            ]
+        )
+
+        ot_badges = (
+            ui.tags.span(
+                *[
+                    ui.tags.span(
+                        ot,
+                        class_=f"badge {_OT_BADGE.get(ot, 'bg-secondary')} me-1",
+                        style="font-size:0.7em;",
+                    )
+                    for ot in row["output_types"]
+                ]
+            )
+            if row["output_types"]
+            else ui.tags.span("—", class_="text-muted small")
+        )
+
+        body_rows.append(
+            ui.tags.tr(
+                ui.tags.td(ui.tags.code(curie)),
+                ui.tags.td(name),
+                ui.tags.td(
+                    ui.tags.span(
+                        category,
+                        class_=f"badge {_CAT_BADGE.get(category, 'bg-secondary')}",
+                    )
+                ),
+                ui.tags.td(org_badges),
+                ui.tags.td(ot_badges),
+            )
+        )
+
+    # ── Column headers & footer filter inputs ────────────────────────────────
+    col_names = ["Ontology ID", "Name", "Category", "Organism", "Available output types"]
+
+    thead = ui.tags.thead(
+        ui.tags.tr(*[ui.tags.th(c) for c in col_names])
+    )
+    tfoot = ui.tags.tfoot(
+        ui.tags.tr(
+            *[
+                ui.tags.th(
+                    ui.tags.input(
+                        type="text",
+                        placeholder=f"Filter…",
+                        style="width:100%; font-size:0.78em; padding:2px 4px;",
+                    )
+                )
+                for _ in col_names
+            ]
+        )
+    )
+
+    table = ui.tags.table(
+        thead,
+        ui.tags.tbody(*body_rows),
+        tfoot,
+        id="tissue-dt",
+        class_="table table-sm table-hover table-bordered w-100",
+    )
+
+    # ── DataTables initialisation script ─────────────────────────────────────
+    init_js = ui.tags.script(
+        """
+        $(function () {
+            var tbl = $('#tissue-dt');
+            if (!tbl.length) return;
+
+            var dt = tbl.DataTable({
+                pageLength: 25,
+                scrollX: true,
+                autoWidth: false,
+                order: [[0, 'asc']],
+                columnDefs: [
+                    { orderable: true,  targets: '_all' },
+                    { width: '130px',   targets: 0 },
+                    { width: '220px',   targets: 1 },
+                    { width: '140px',   targets: 2 },
+                    { width: '100px',   targets: 3 },
+                ],
+                initComplete: function () {
+                    this.api().columns().every(function (i) {
+                        var col = this;
+                        $('input', col.footer()).on('keyup change clear', function () {
+                            if (col.search() !== this.value) {
+                                col.search(this.value).draw();
+                            }
+                        });
+                    });
+                },
+            });
+
+            /* Re-adjust when the tab becomes visible */
+            $('[data-bs-toggle="tab"]').on('shown.bs.tab', function () {
+                dt.columns.adjust();
+            });
+        });
+        """
+    )
+
+    return ui.div(
+        ui.head_content(
+            ui.tags.link(
+                rel="stylesheet",
+                href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css",
+            ),
+            ui.tags.script(
+                src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"
+            ),
+            ui.tags.script(
+                src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"
+            ),
+        ),
+        table,
+        init_js,
+    )
+
+
+# ---------------------------------------------------------------------------
 # UI
 # ---------------------------------------------------------------------------
 
@@ -238,23 +411,18 @@ def guide_ui():
                 "Tissues & Cell Types",
                 ui.div(
                     ui.p(
-                        "Select ontology terms to restrict predictions to specific biological contexts. "
+                        "Ontology terms supported by AlphaGenome. "
                         "Use ",
                         ui.tags.strong("UBERON"),
                         " for tissues/organs, ",
                         ui.tags.strong("CL"),
                         " for cell types, and ",
-                        ui.tags.strong("EFO"),
-                        " for cell lines.",
+                        ui.tags.strong("EFO / CLO"),
+                        " for cell lines. "
+                        "Click any column header to sort; use the filter row to search within a column.",
                         class_="mt-3 mb-3 small text-muted",
                     ),
-                    ui.input_text(
-                        "tissue_search",
-                        None,
-                        placeholder="Filter by name or ontology ID…",
-                        width="320px",
-                    ),
-                    ui.output_ui("tissue_table"),
+                    _tissue_table_widget(),
                     class_="pb-4",
                 ),
             ),
@@ -268,54 +436,4 @@ def guide_ui():
 
 @module.server
 def guide_server(input, output, session):
-
-    @render.ui
-    def tissue_table():
-        query = input.tissue_search().strip().lower()
-
-        rows = []
-        for curie, name in ONTOLOGY_TERMS.items():
-            prefix = curie.split(":")[0]
-            category = _ONTOLOGY_CATEGORY.get(prefix, prefix)
-            if query and query not in curie.lower() and query not in name.lower():
-                continue
-            rows.append((curie, name, category))
-
-        if not rows:
-            return ui.div(
-                ui.tags.em("No terms match your search."),
-                class_="text-muted mt-2",
-            )
-
-        # Category → badge colour
-        cat_badge = {
-            "Tissue / organ":                   "bg-primary",
-            "Cell type":                         "bg-success",
-            "Cell line / experimental factor":   "bg-warning text-dark",
-        }
-
-        header = ui.tags.thead(
-            ui.tags.tr(
-                ui.tags.th("Ontology ID"),
-                ui.tags.th("Name"),
-                ui.tags.th("Category"),
-            )
-        )
-        body_rows = [
-            ui.tags.tr(
-                ui.tags.td(ui.tags.code(curie)),
-                ui.tags.td(name),
-                ui.tags.td(
-                    ui.tags.span(
-                        category,
-                        class_=f"badge {cat_badge.get(category, 'bg-secondary')}",
-                    )
-                ),
-            )
-            for curie, name, category in rows
-        ]
-        return ui.tags.table(
-            header,
-            ui.tags.tbody(*body_rows),
-            class_="table table-sm table-hover table-bordered mt-2",
-        )
+    pass  # tissue table is built statically in guide_ui via _tissue_table_widget()

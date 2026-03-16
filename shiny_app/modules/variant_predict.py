@@ -148,7 +148,7 @@ def variant_predict_ui():
                 ui.navset_tab(
                     ui.nav_panel(
                         "REF vs ALT plot",
-                        ui.output_plot("effect_plot", height="500px"),
+                        ui.output_ui("effect_plot_container"),
                     ),
                     ui.nav_panel(
                         "Variant scores",
@@ -287,6 +287,24 @@ def variant_predict_server(input, output, session, api_key_rv):
             class_="alert alert-success",
         )
 
+    # ── Plot height helpers ──────────────────────────────────────────────────
+    def _count_tracks(ref_track, transcripts):
+        n = 1 if transcripts is not None else 0
+        if ref_track is not None and hasattr(ref_track, "metadata"):
+            n += len(ref_track.metadata)
+        return max(n, 1)
+
+    @render.ui
+    def effect_plot_container():
+        data = _result()
+        if data is None:
+            return ui.output_plot("effect_plot", height="400px", width="100%")
+        variant_output, variant, interval, ot_name, transcripts, _ = data
+        ref_track = getattr(variant_output.reference, ot_name.lower(), None)
+        n = _count_tracks(ref_track, transcripts)
+        height_px = max(400, n * 60 + 180)
+        return ui.output_plot("effect_plot", height=f"{height_px}px", width="100%")
+
     # ── REF vs ALT plot ──────────────────────────────────────────────────────
     @render.plot
     def effect_plot():
@@ -322,7 +340,13 @@ def variant_predict_server(input, output, session, api_key_rv):
             interval=plot_interval,
             annotations=[plot_components.VariantAnnotation([variant], alpha=0.8)],
         )
-        return fig if fig is not None else plt.gcf()
+        if fig is None:
+            fig = plt.gcf()
+
+        # Resize figure height to match track count
+        n = _count_tracks(ref_track, transcripts)
+        fig.set_size_inches(fig.get_figwidth(), max(5.0, n * 0.55 + 2.0))
+        return fig
 
     # ── Scores table ─────────────────────────────────────────────────────────
     @render.ui
