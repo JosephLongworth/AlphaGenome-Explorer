@@ -23,6 +23,7 @@ from modules.sequence_predict import sequence_predict_ui, sequence_predict_serve
 from modules.interval_predict import interval_predict_ui, interval_predict_server
 from modules.variant_predict import variant_predict_ui, variant_predict_server
 from modules.ism_analysis import ism_analysis_ui, ism_analysis_server
+from modules.contact_maps import contact_maps_ui, contact_maps_server
 from modules.guide import guide_ui, guide_server
 from shared import DEFAULT_API_KEY
 
@@ -49,6 +50,7 @@ app_ui = ui.page_navbar(
     ui.nav_panel("Interval Prediction", interval_predict_ui("int_pred")),
     ui.nav_panel("Variant Analysis", variant_predict_ui("var_pred")),
     ui.nav_panel("ISM Analysis", ism_analysis_ui("ism")),
+    ui.nav_panel("Contact Maps", contact_maps_ui("contact_maps")),
     ui.nav_panel("Guide", guide_ui("guide")),
 
     # ── Settings (right-aligned) ─────────────────────────────────────────────
@@ -148,6 +150,7 @@ def server(input, output, session):
     interval_predict_server("int_pred", api_key_rv=api_key_rv)
     variant_predict_server("var_pred", api_key_rv=api_key_rv)
     ism_analysis_server("ism", api_key_rv=api_key_rv)
+    contact_maps_server("contact_maps", api_key_rv=api_key_rv)
     guide_server("guide")
 
 

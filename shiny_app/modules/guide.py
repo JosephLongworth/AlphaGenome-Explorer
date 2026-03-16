@@ -17,6 +17,7 @@ _CATEGORY_STYLE = {
     "Gene expression":           ("#198754", "text-success", "📈"),
     "Epigenomics":               ("#6f42c1", "text-purple",  "🏷"),
     "RNA splicing":              ("#dc3545", "text-danger",  "✂"),
+    "Genome 3D organisation":   ("#343a40", "text-dark",    "🧬"),
 }
 
 OUTPUT_TYPE_INFO = [
@@ -137,6 +138,19 @@ OUTPUT_TYPE_INFO = [
             "Captures actively elongating polymerase — lower background than CAGE",
             "Detects enhancer RNAs (eRNAs) as bidirectional peaks",
             "Best choice when precise TSS localisation matters",
+        ],
+        "scoreable": False,
+    },
+    {
+        "name": "CONTACT_MAPS",
+        "full_name": "Hi-C Contact Maps",
+        "category": "Genome 3D organisation",
+        "tagline": "Predicted 3D chromatin contacts — which loci physically interact.",
+        "bullets": [
+            "2D matrix: rows and columns are genomic bins, values are contact frequency",
+            "Reveals TADs, loop anchors, and A/B compartments from sequence alone",
+            "Does not require a tissue/cell-type selection — predicted from DNA sequence",
+            "Use 500 KB or 1 MB windows for TAD-scale interpretation",
         ],
         "scoreable": False,
     },

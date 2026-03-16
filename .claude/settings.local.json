@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"from alphagenome.visualization import plot_components; print\\([x for x in dir\\(plot_components\\) if not x.startswith\\(''_''\\)]\\)\")",
+      "Bash(python -c \":*)"
+    ]
+  }
+}
