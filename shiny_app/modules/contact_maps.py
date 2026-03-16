@@ -349,12 +349,16 @@ def contact_maps_server(input, output, session, api_key_rv):
                 plot_components.TranscriptAnnotation(transcripts, fig_height=0.15)
             )
 
+        # Slice to the requested number of tracks before passing to ContactMaps —
+        # the component raises an error rather than truncating automatically.
+        n = int(input.max_tracks())
+        cm_plot = cm.select_tracks_by_index(list(range(min(n, cm.num_tracks))))
+
         components.append(
             plot_components.ContactMaps(
-                tdata=cm,
+                tdata=cm_plot,
                 vmin=-1.0,
                 vmax=float(input.vmax()),
-                max_num_tracks=int(input.max_tracks()),
             )
         )
 
@@ -364,7 +368,7 @@ def contact_maps_server(input, output, session, api_key_rv):
             fig = plt.gcf()
 
         # Scale figure height: each contact map track + transcript strip
-        n_tracks = min(cm.num_tracks, int(input.max_tracks()))
+        n_tracks = cm_plot.num_tracks
         transcript_height = 1.5 if transcripts is not None else 0.0
         fig.set_size_inches(fig.get_figwidth(), n_tracks * 10.0 + transcript_height + 1.0)
         return fig
