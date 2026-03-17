@@ -168,6 +168,47 @@ def landing_ui():
                 ),
                 class_="card h-100 border-primary",
             ),
+            # Contact Maps
+            ui.div(
+                ui.div(
+                    ui.div(
+                        ui.tags.span(
+                            "Contact Maps",
+                            class_="card-title fw-semibold fs-5",
+                        ),
+                        class_="mb-2",
+                    ),
+                    ui.p(
+                        "Predict Hi-C style chromatin contact maps for a genomic interval. "
+                        "Visualise topologically associating domains (TADs), compartments, "
+                        "and long-range looping interactions directly from DNA sequence. "
+                        "No tissue or cell-type selection required.",
+                        class_="card-text text-muted",
+                    ),
+                    class_="card-body",
+                ),
+                class_="card h-100 border-primary",
+            ),
+            # Guide
+            ui.div(
+                ui.div(
+                    ui.div(
+                        ui.tags.span(
+                            "Guide",
+                            class_="card-title fw-semibold fs-5",
+                        ),
+                        class_="mb-2",
+                    ),
+                    ui.p(
+                        "Browse the full catalogue of available tissues, cell types, and "
+                        "output tracks supported by AlphaGenome. Use the searchable table "
+                        "to find ontology terms for use in prediction modules.",
+                        class_="card-text text-muted",
+                    ),
+                    class_="card-body",
+                ),
+                class_="card h-100 border-primary",
+            ),
             class_="row row-cols-1 row-cols-md-2 g-4 mb-5",
         ),
         # ── Tips ─────────────────────────────────────────────────────────────

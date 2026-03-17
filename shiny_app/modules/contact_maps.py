@@ -107,16 +107,6 @@ def contact_maps_ui():
                     )),
                     value=True,
                 ),
-                ui.input_numeric(
-                    "max_tracks",
-                    ui.span("Max contact map tracks", help_icon(
-                        "AlphaGenome may return multiple contact map tracks. "
-                        "Limit the number displayed to avoid very tall plots."
-                    )),
-                    value=4,
-                    min=1,
-                    max=10,
-                ),
                 ui.input_slider(
                     "vmax",
                     ui.span("Colour scale max", help_icon(
@@ -143,6 +133,7 @@ def contact_maps_ui():
                 ui.output_ui("info_card_ui"),
                 ui.output_ui("contact_plot_container"),
                 ui.output_ui("metadata_ui"),
+                ui.output_data_frame("metadata_table"),
             ),
         ),
     )
@@ -155,10 +146,11 @@ def contact_maps_ui():
 @module.server
 def contact_maps_server(input, output, session, api_key_rv):
 
-    _gtf_loaded = reactive.Value(False)
-    _gtf_data   = reactive.Value(None)   # (gtf, transcript_extractor)
-    _result     = reactive.Value(None)   # (output_obj, interval, transcripts)
-    _error      = reactive.Value(None)
+    _gtf_loaded      = reactive.Value(False)
+    _gtf_data        = reactive.Value(None)   # (gtf, transcript_extractor)
+    _result          = reactive.Value(None)   # (output_obj, interval, transcripts)
+    _error           = reactive.Value(None)
+    _selected_track  = reactive.Value(0)      # index of track shown in plot
 
     # ── Load GTF ────────────────────────────────────────────────────────────
     @reactive.effect
@@ -197,6 +189,7 @@ def contact_maps_server(input, output, session, api_key_rv):
     def _run():
         _result.set(None)
         _error.set(None)
+        _selected_track.set(0)
 
         key = api_key_rv()
         if not key:
@@ -319,14 +312,11 @@ def contact_maps_server(input, output, session, api_key_rv):
     @render.ui
     def contact_plot_container():
         data = _result()
-        if data is None:
-            return ui.output_plot("contact_plot", height="400px", width="100%")
-        output_obj, interval, transcripts = data
-        cm = getattr(output_obj, "contact_maps", None)
-        n_tracks = min(cm.num_tracks, input.max_tracks()) if cm is not None else 1
-        # Each contact map track is a square: track_height=10 inches → ~100px each,
-        # plus ~80px for transcript strip + margins.
-        height_px = max(400, n_tracks * 520 + (80 if transcripts else 0))
+        transcript_extra = 0
+        if data is not None:
+            _, _, transcripts = data
+            transcript_extra = 80 if transcripts else 0
+        height_px = 520 + transcript_extra
         return ui.output_plot("contact_plot", height=f"{height_px}px", width="100%")
 
     # ── Plot ────────────────────────────────────────────────────────────────
@@ -343,16 +333,15 @@ def contact_maps_server(input, output, session, api_key_rv):
 
         from alphagenome.visualization import plot_components
 
+        # Clamp selected index to valid range
+        idx = min(_selected_track(), cm.num_tracks - 1)
+        cm_plot = cm.select_tracks_by_index([idx])
+
         components = []
         if transcripts is not None:
             components.append(
                 plot_components.TranscriptAnnotation(transcripts, fig_height=0.15)
             )
-
-        # Slice to the requested number of tracks before passing to ContactMaps —
-        # the component raises an error rather than truncating automatically.
-        n = int(input.max_tracks())
-        cm_plot = cm.select_tracks_by_index(list(range(min(n, cm.num_tracks))))
 
         components.append(
             plot_components.ContactMaps(
@@ -367,32 +356,45 @@ def contact_maps_server(input, output, session, api_key_rv):
         if fig is None:
             fig = plt.gcf()
 
-        # Scale figure height: each contact map track + transcript strip
-        n_tracks = cm_plot.num_tracks
         transcript_height = 1.5 if transcripts is not None else 0.0
-        fig.set_size_inches(fig.get_figwidth(), n_tracks * 10.0 + transcript_height + 1.0)
+        fig.set_size_inches(fig.get_figwidth(), 10.0 + transcript_height + 1.0)
         return fig
 
-    # ── Metadata table ───────────────────────────────────────────────────────
+    # ── Metadata heading ─────────────────────────────────────────────────────
     @render.ui
     def metadata_ui():
         data = _result()
         if data is None:
             return ui.div()
-
         output_obj, *_ = data
         cm = getattr(output_obj, "contact_maps", None)
         if cm is None or not hasattr(cm, "metadata") or cm.metadata is None:
             return ui.div()
-
-        df = cm.metadata
+        idx = min(_selected_track(), cm.num_tracks - 1)
         return ui.div(
-            ui.tags.h5("Contact Maps – track metadata", class_="mt-4"),
-            ui.HTML(
-                df.to_html(
-                    classes="table table-sm table-striped table-bordered",
-                    index=False,
-                    max_rows=20,
-                )
+            ui.tags.h5("Contact map tracks", class_="mt-4"),
+            ui.tags.p(
+                f"Showing track {idx}. Click a row below to switch tracks.",
+                class_="text-muted mb-1",
             ),
         )
+
+    # ── Selectable metadata table ─────────────────────────────────────────────
+    @render.data_frame
+    def metadata_table():
+        data = _result()
+        if data is None:
+            return None
+        output_obj, *_ = data
+        cm = getattr(output_obj, "contact_maps", None)
+        if cm is None or not hasattr(cm, "metadata") or cm.metadata is None:
+            return None
+        return render.DataGrid(cm.metadata, selection_mode="row", width="100%")
+
+    # ── Update selected track when a row is clicked ───────────────────────────
+    @reactive.effect
+    def _on_track_select():
+        sel = metadata_table.cell_selection()
+        rows = sel.get("rows", ())
+        if rows:
+            _selected_track.set(int(rows[0]))
