@@ -4,3 +4,4 @@ alphagenome
 matplotlib
 pandas
 pyarrow        # required by pandas.read_feather
+openpyxl
